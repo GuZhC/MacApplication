@@ -1,2 +1,2 @@
-include ':app', ':toastlib'
+include ':app', ':toastlib', ':lib_okhttp_gu'
 rootProject.name='MacApplication'
