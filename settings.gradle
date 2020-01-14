@@ -1,2 +1,2 @@
-include ':app', ':toastlib', ':lib_okhttp_gu'
+include ':app', ':toastlib', ':lib_okhttp_gu', ':lib_imgloader_gu'
 rootProject.name='MacApplication'
