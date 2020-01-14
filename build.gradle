@@ -40,7 +40,7 @@ allprojects {
 //                password 'dmin123'
 //            }
 //        }
-        maven{url 'https://dl.bintray.com/guzhongcai/maven'}
+//        maven{url 'https://dl.bintray.com/guzhongcai/maven'}
     }
 }
 
