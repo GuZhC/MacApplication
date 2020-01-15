@@ -1,9 +1,9 @@
-package com.guzhc.lib_imgloader_gu;
+package com.guzhc.lib_audio_gu;
 
 import android.content.Context;
 
 import androidx.test.platform.app.InstrumentationRegistry;
-import androidx.test.runner.AndroidJUnit4;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -22,6 +22,6 @@ public class ExampleInstrumentedTest {
         // Context of the app under test.
         Context appContext = InstrumentationRegistry.getInstrumentation().getTargetContext();
 
-        assertEquals("com.guzhc.lib_imgloader_gu.test", appContext.getPackageName());
+        assertEquals("com.guzhc.lib_audio_gu.test", appContext.getPackageName());
     }
 }
