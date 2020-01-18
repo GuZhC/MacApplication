@@ -10,9 +10,14 @@ import android.os.Message;
 import android.os.PowerManager;
 import android.util.Log;
 
-import androidx.annotation.NonNull;
-
 import com.guzhc.lib_audio_gu.app.AudioHelper;
+import com.guzhc.lib_audio_gu.events.AudioCompleteEvent;
+import com.guzhc.lib_audio_gu.events.AudioErrorEvent;
+import com.guzhc.lib_audio_gu.events.AudioLoadEvent;
+import com.guzhc.lib_audio_gu.events.AudioPauseEvent;
+import com.guzhc.lib_audio_gu.events.AudioProgressEvent;
+import com.guzhc.lib_audio_gu.events.AudioReleaseEvent;
+import com.guzhc.lib_audio_gu.events.AudioStartEvent;
 import com.guzhc.lib_audio_gu.model.AudioBean;
 
 import org.greenrobot.eventbus.EventBus;
@@ -28,7 +33,7 @@ import java.io.IOException;
  * 2 发送各种类型事件
  */
 public class AudioPlayer implements MediaPlayer.OnCompletionListener, MediaPlayer.OnBufferingUpdateListener,
-        MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener ,AudioFocusManager.AudioFocusListener{
+        MediaPlayer.OnPreparedListener, MediaPlayer.OnErrorListener, AudioFocusManager.AudioFocusListener {
 
     private static final String TAG = "AudioPlayer";
     private static final int TIME_MSG = 0x01;
@@ -42,14 +47,18 @@ public class AudioPlayer implements MediaPlayer.OnCompletionListener, MediaPlaye
     //播放进度更新handler
     private Handler mHandler = new Handler(Looper.getMainLooper()) {
         @Override
-        public void handleMessage(@NonNull Message msg) {
+        public void handleMessage(Message msg) {
             switch (msg.what) {
-                case TIME_INVAL:
+                case TIME_MSG:
                     //暂停也要更新进度，防止UI不同步，只不过进度一直一样
                     if (getStatus() == CustomMediaPlayer.Status.STARTED
-                    || getStatus() == CustomMediaPlayer.Status.PAUSED)
-
-                        break;
+                            || getStatus() == CustomMediaPlayer.Status.PAUSED) {
+                        //UI类型处理事件
+                        EventBus.getDefault()
+                                .post(new AudioProgressEvent(getStatus(), getCurrentPosition(), getDuration()));
+                        sendEmptyMessageDelayed(TIME_MSG, TIME_INVAL);
+                    }
+                    break;
             }
         }
     };
@@ -61,8 +70,62 @@ public class AudioPlayer implements MediaPlayer.OnCompletionListener, MediaPlaye
         init();
     }
 
+    @Override
+    public void audioFocusGrant() {
+        //重新获得焦点
+        setVolumn(1.0f, 1.0f);
+        if (isPausedByFocusLossTransient) {
+            resume();
+        }
+        isPausedByFocusLossTransient = false;
+    }
+
+    @Override
+    public void audioFocusLoss() {
+        //永久失去焦点，暂停
+        if (mMediaPlayer != null) pause();
+    }
+
+    @Override
+    public void audioFocusLossTransient() {
+        //短暂失去焦点，暂停
+        if (mMediaPlayer != null) pause();
+        isPausedByFocusLossTransient = true;
+    }
+
+    @Override
+    public void audioFocusLossDuck() {
+        //瞬间失去焦点,
+        setVolumn(0.5f, 0.5f);
+    }
+
+    @Override
+    public void onBufferingUpdate(MediaPlayer mp, int percent) {
+
+    }
+
+    @Override
+    public void onCompletion(MediaPlayer mp) {
+        //发送播放完成事件,逻辑类型事件
+        EventBus.getDefault().post(new AudioCompleteEvent());
+    }
+
+    @Override
+    public boolean onError(MediaPlayer mp, int what, int extra) {
+        //发送当次播放实败事件,逻辑类型事件
+        EventBus.getDefault().post(new AudioErrorEvent());
+        return false;
+    }
+
+    @Override
+    public void onPrepared(MediaPlayer mp) {
+        start();
+    }
+
+    //初始化播放器相关对象
     private void init() {
         mMediaPlayer = new CustomMediaPlayer();
+        // 使用唤醒锁
         mMediaPlayer.setWakeMode(AudioHelper.getContext(), PowerManager.PARTIAL_WAKE_LOCK);
         mMediaPlayer.setAudioStreamType(AudioManager.STREAM_MUSIC);
         mMediaPlayer.setOnCompletionListener(this);
@@ -77,44 +140,13 @@ public class AudioPlayer implements MediaPlayer.OnCompletionListener, MediaPlaye
         mAudioFocusManager = new AudioFocusManager(AudioHelper.getContext(), this);
     }
 
-    @Override
-    public void audioFocusGrant() {
-
-    }
-
-    @Override
-    public void audioFocusLoss() {
-
-    }
-
-    @Override
-    public void audioFocusLossTransient() {
-
-    }
-
-    @Override
-    public void audioFocusLossDuck() {
-
-    }
-
-    @Override
-    public void onBufferingUpdate(MediaPlayer mp, int percent) {
-
-    }
-
-    @Override
-    public void onCompletion(MediaPlayer mp) {
-
-    }
-
-    @Override
-    public boolean onError(MediaPlayer mp, int what, int extra) {
-        return false;
-    }
-
-    @Override
-    public void onPrepared(MediaPlayer mp) {
-        start();
+    //获取播放器状态
+    public CustomMediaPlayer.Status getStatus() {
+        if (mMediaPlayer != null) {
+            return mMediaPlayer.getState();
+        } else {
+            return CustomMediaPlayer.Status.STOPPED;
+        }
     }
 
     /*
@@ -179,6 +211,7 @@ public class AudioPlayer implements MediaPlayer.OnCompletionListener, MediaPlaye
             EventBus.getDefault().post(new AudioPauseEvent());
         }
     }
+
     /**
      * 销毁唯一mediaplayer实例,只有在退出app时使用
      */
@@ -201,15 +234,6 @@ public class AudioPlayer implements MediaPlayer.OnCompletionListener, MediaPlaye
         mHandler.removeCallbacksAndMessages(null);
         //发送销毁播放器事件,清除通知等
         EventBus.getDefault().post(new AudioReleaseEvent());
-    }
-
-    private CustomMediaPlayer.Status getStatus() {
-        if (mMediaPlayer != null) {
-            return mMediaPlayer.getState();
-        } else {
-            return CustomMediaPlayer.Status.STARTED;
-        }
-
     }
 
     /**
